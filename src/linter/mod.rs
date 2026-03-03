@@ -314,8 +314,7 @@ mod tests {
     #[test]
     fn test_w002_in_match_statement() {
         let engine = LintEngine::new();
-        let diagnostics =
-            engine.lint(r#"status match { "200" => unknownFunc() ; * => count() }"#);
+        let diagnostics = engine.lint(r#"status match { "200" => unknownFunc() ; * => count() }"#);
         let w002: Vec<_> = diagnostics.iter().filter(|d| d.rule_id == "W002").collect();
         assert_eq!(w002.len(), 1);
         assert!(w002[0].message.contains("unknownFunc"));
@@ -433,8 +432,7 @@ mod tests {
     #[test]
     fn test_w003_in_match_statement() {
         let engine = LintEngine::new();
-        let diagnostics =
-            engine.lint(r#"status match { "200" => groupBy() ; * => count() }"#);
+        let diagnostics = engine.lint(r#"status match { "200" => groupBy() ; * => count() }"#);
         let w003 = diagnostics.iter().filter(|d| d.rule_id == "W003").count();
         assert_eq!(w003, 1);
     }
