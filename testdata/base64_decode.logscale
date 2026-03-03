@@ -1,0 +1,19 @@
+// Base64 エンコードされた PowerShell コマンドの検出とデコード
+// Source: CrowdStrike/logscale-community-content
+#event_simpleName=ProcessRollup2 event_platform=Win ImageFileName=/.*\\powershell\.exe/
+| CommandLine=/\s+\-(e|encoded|encodedcommand|enc)\s+/i
+| CommandLine=/\-(?<psEncFlag>(e|encoded|encodedcommand|enc))\s+/i
+| length("CommandLine", as="cmdLength")
+| groupBy([psEncFlag, cmdLength, CommandLine], function=stats([count(aid, distinct=true, as="uniqueEndpointCount"), count(aid, as="executionCount")]), limit=max)
+| EncodedString := splitString(field=CommandLine, by="-e* ", index=1)
+| CmdLinePrefix := splitString(field=CommandLine, by="-e* ", index=0)
+| DecodedString := base64Decode(EncodedString, charset="UTF-16LE")
+| case {
+    DecodedString = /encoded/i
+    | SubEncodedString := splitString(field=DecodedString, by="-EncodedCommand ", index=1)
+    | SubCmdLinePrefix := splitString(field=EncodedString, by="-EncodedCommand ", index=0)
+    | SubDecodedString := base64Decode(SubEncodedString, charset="UTF-16LE");
+    *
+}
+| table([executionCount, uniqueEndpointCount, cmdLength, DecodedString, CommandLine])
+| sort(executionCount, order=desc)

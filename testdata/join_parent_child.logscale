@@ -1,0 +1,14 @@
+// join によるプロセス親子関係の結合
+// Source: CrowdStrike/logscale-community-content
+aid=?aid #event_simpleName=ProcessRollup2 ImageFileName=/\\outlook.exe/i
+| ImageFileName=/(\/|\\)(?<FileName>\w*\.?\w*)$/
+| join( {
+  aid=?aid
+  | #event_simpleName=ProcessRollup2
+  | ParentBaseFileName=/outlook.exe/i
+  | ImageFileName=/(chrome|firefox|iexplore)\.exe/i
+  | MD5 := MD5HashData
+  | ImageFileName=/(\/|\\)(?<ChildFileName>\w*\.?\w*)$/
+  | ChildCLI := CommandLine
+  }, key=ParentProcessId, field=TargetProcessId, include=[MD5, ChildFileName, ChildCLI])
+| groupBy([aid, FileName, CommandLine, ChildFileName, ChildCLI, MD5], limit=max)

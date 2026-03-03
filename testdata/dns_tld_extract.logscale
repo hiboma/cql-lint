@@ -1,0 +1,16 @@
+// DNS リクエストから TLD を抽出する
+// Source: cs-shadowbq/CQL-Queries
+#event_simpleName=DnsRequest
+| RequestType=16
+| DomainName != "*.bind"
+| DomainName=/\./
+| tld := splitString(field=DomainName, by="\.")
+| _outLength := array:length("tld[]")
+| lastIndex := _outLength-1
+| lastValue := getField(format("tld[%s]", field=[lastIndex]))
+| lastButOneIndex := _outLength-2
+| lastButOneValue := getField(format("tld[%s]", field=[lastButOneIndex]))
+| array:drop("tld[]")
+| tld := format("%s.%s", field=[lastButOneValue, lastValue])
+| drop([lastIndex, lastButOneIndex, lastButOneValue, lastValue, _outLength])
+| groupBy([tld])

@@ -1,0 +1,37 @@
+// case 文による行動重み付けスコアリング
+// Source: CrowdStrike/logscale-community-content
+#event_simpleName=ProcessRollup2 event_platform=Win
+| ImageFileName=/\\(?<FileName>(whoami|net1?|systeminfo|ping|nltest|sc|hostname|ipconfig)\.exe)/i
+| ProcessStartTime := ProcessStartTime*1000
+| dayBucket := formatTime("%Y-%m-%d %H", field=ProcessStartTime, locale=en_US, timezone=Z)
+| CommandLine := lower(CommandLine)
+| FileName := lower(FileName)
+| regex("(sc|net1?)\s+(?<netFlag>\S+)\s+", field=CommandLine, strict=false)
+| netFlag := lower(netFlag)
+| case {
+       FileName=/net1?\.exe/ AND netFlag="start" | behaviorWeight := "4" ;
+       FileName=/net1?\.exe/ AND netFlag="stop" | behaviorWeight := "4" ;
+       FileName=/net1?\.exe/ AND netFlag="stop" AND CommandLine=/falcon/i | behaviorWeight := "25" ;
+       FileName=/sc\.exe/ AND netFlag="start" | behaviorWeight := "4" ;
+       FileName=/sc\.exe/ AND netFlag="stop" | behaviorWeight := "4" ;
+       FileName=/sc\.exe/ AND netFlag=/(query|stop)/i AND CommandLine=/csagent/i | behaviorWeight := "25" ;
+       FileName=/net1?\.exe/ AND netFlag="share" | behaviorWeight := "2" ;
+       FileName=/net1?\.exe/ AND netFlag="user" AND CommandLine=/\/delete/i | behaviorWeight := "10" ;
+       FileName=/net1?\.exe/ AND netFlag="user" AND CommandLine=/\/add/i | behaviorWeight := "10" ;
+       FileName=/net1?\.exe/ AND netFlag="group" AND CommandLine=/\/domain\s+/i | behaviorWeight := "5" ;
+       FileName=/net1?\.exe/ AND netFlag="group" AND CommandLine=/admin/i | behaviorWeight := "5" ;
+       FileName=/net1?\.exe/ AND netFlag="localgroup" AND CommandLine=/\/add/i | behaviorWeight := "10" ;
+       FileName=/net1?\.exe/ AND netFlag="localgroup" AND CommandLine=/\/delete/i | behaviorWeight := "10" ;
+       FileName=/nltest\.exe/ | behaviorWeight := "3" ;
+       FileName=/systeminfo\.exe/ | behaviorWeight := "3" ;
+       FileName=/whoami\.exe/ | behaviorWeight := "3" ;
+       FileName=/ping\.exe/ | behaviorWeight := "3" ;
+       FileName=/hostname\.exe/ | behaviorWeight := "3" ;
+       FileName=/ipconfig\.exe/ | behaviorWeight := "3" ;
+ * }
+| default(field=behaviorWeight, value=1)
+| format(format="(Score: %s) %s", field=[behaviorWeight, FileName], as="executionDetails")
+| groupBy([cid, aid, dayBucket], function=[count(FileName, distinct=true, as="fileCount"), sum(behaviorWeight, as="behaviorWeight"), series(executionDetails)], limit=max)
+| fileCount >= 5 OR behaviorWeight > 30
+| sort(behaviorWeight)
+| drop([@timestamp])

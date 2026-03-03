@@ -1,0 +1,52 @@
+// エンドポイントデバイス向けの監視クエリ
+// 目的: 内部ネットワークで受信した接続を検出し、接続元デバイス名を特定する
+in(field=#event_simpleName, values = [NetworkReceiveAcceptIP4, NetworkReceiveAcceptIP6])
+// Linux はサーバにしかインストールしていないので除外する
+| event_platform != "Lin"
+// 受信接続(ConnectionDirection=1) かつ TCP(Protocol=6) に限定する
+| ConnectionDirection=1 Protocol = 6
+// プライベートIPアドレス範囲のみを対象にする
+| cidr(RemoteAddressIP4, subnet=["172.16.0.0/12", "192.168.0.0/16"])
+// 自分自身への接続を除外する
+| test(RemoteAddressIP4 != LocalAddressIP4)
+// ノイズとなるポートを除外する
+| !LPort = 5357 // WSD (Web Services on Devices)
+| !LPort = 7680 // Windows Update 配信最適化
+| !LPort = 2869 // SSDP/UPnP
+// 個別の除外ルール
+| !(ContextBaseFileName = "Proxyman" ComputerName = "DEVICE-001") // モバイル開発用プロキシ
+| !in(field=ContextBaseFileName, values = ["ControlCenter", "rapportd", "logioptionsplus_agent", "cupsd", "mDNSResponder", "MouseWithoutBorders.exe", "Spotify", "SpotifyLauncher"])
+// 接続元 IP の ASN 情報とロケーション情報を付与する
+| asn(RemoteAddressIP4)
+| ipLocation(RemoteAddressIP4)
+// 接続元デバイス名を解決するための join キーを作成する
+// メイン側: RemoteAddressIP4 + LPort (受信したポート)
+| format(format="%s_%s", field=[RemoteAddressIP4, LPort], as=joinKey)
+// NetworkConnect イベントから接続元デバイス名を取得する
+// サブクエリ側: LocalAddressIP4 + RPort (接続先ポート) で突き合わせる
+| join({
+    in(field=#event_simpleName, values = [NetworkConnectIP4, NetworkConnectIP6])
+    | cidr(LocalAddressIP4, subnet=["172.16.0.0/12", "192.168.0.0/16"])
+    | rename(field=ComputerName, as=RemoteComputerName)
+    | format(format="%s_%s", field=[LocalAddressIP4, RPort], as=joinKey)
+    | groupBy(field=[joinKey, RemoteComputerName], limit=50000)
+  }, field=joinKey, key=joinKey, include=[RemoteComputerName], mode=left)
+| table(fields=[
+    @timestamp,
+    aip,
+    event_simpleName,
+    LocalAddressIP4,
+    RemoteAddressIP4,
+    RemoteAddressIP4.org,
+    RemoteAddressIP4.country,
+    RemoteAddressIP4.city,
+    LocalAddressIP6,
+    RemoteAddressIP6,
+    ConnectionDirection_decimal,
+    LPort,
+    RPort,
+    event_platform,
+    ComputerName,
+    ContextBaseFileName,
+    RemoteComputerName
+  ])

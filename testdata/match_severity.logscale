@@ -1,0 +1,14 @@
+// match 文による severity レベルのマッピング
+// Source: cs-shadowbq/CQL-Queries
+severity=*
+| severity match {
+    0 => severity_level:="emergency" ;
+    1 => severity_level:="alert" ;
+    2 => severity_level:="critical" ;
+    3 => severity_level:="error" ;
+    4 => severity_level:="warning" ;
+    5 => severity_level:="notification" ;
+    6 => severity_level:="informational" ;
+    7 => severity_level:="debug" ;
+    * => * ;
+}

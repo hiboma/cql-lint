@@ -1,0 +1,1 @@
+status >= 400 and (method = "GET" or method = "POST") | groupBy(field=url) | sort(count, order=desc) | head(10)

@@ -1,0 +1,17 @@
+/target
+.DS_Store
+.env
+*.swp
+
+# Editor / IDE
+.idea/
+.vscode/
+*.iml
+
+# Claude Code
+.claude/
+CLAUDE.md
+
+# Project local
+test.txt
+tmp/

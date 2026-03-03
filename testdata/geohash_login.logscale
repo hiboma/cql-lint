@@ -1,0 +1,19 @@
+// コンソールログインのジオハッシュプロファイリング
+// Source: CrowdStrike/logscale-community-content
+EventType=Event_ExternalApiEvent OperationName=userAuthenticate Success=true
+| asn(OriginSourceIpAddress, as=asn)
+| ipLocation(OriginSourceIpAddress)
+| geohash(lat=OriginSourceIpAddress.lat, lon=OriginSourceIpAddress.lon, precision=2, as=geohash)
+| rdns(OriginSourceIpAddress, as=rdns)
+| default(value="Unknown Country", field=[OriginSourceIpAddress.country])
+| default(value="Unknown City", field=[OriginSourceIpAddress.city])
+| default(value="Unknown ASN", field=[asn.org])
+| default(value="Unknown RDNS", field=[rdns])
+| format(format="%s (%s, %s) [%s] - %s", field=[OriginSourceIpAddress, OriginSourceIpAddress.country, OriginSourceIpAddress.city, asn.org, rdns], as=ipDetails)
+| groupBy([UserId, geoHash], function=([count(as=logonCount), min(@timestamp, as=firstLogon), max(@timestamp, as=lastLogon), collect(ipDetails)]))
+| test(logonCount<5)
+| timeDelta := lastLogon-firstLogon
+| formatDuration(timeDelta, from=ms, precision=4, as=timeDelta)
+| formatTime(format="%Y-%m-%dT%H:%M:%S", field=firstLogon, as="firstLogon")
+| formatTime(format="%Y-%m-%dT%H:%M:%S", field=lastLogon, as="lastLogon")
+| select([UserId, firstLogon, lastLogon, timeDelta, logonCount, ipDetails])

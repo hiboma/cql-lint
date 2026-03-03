@@ -1,0 +1,8 @@
+// ラテラルムーブメントの検出
+// Source: ByteRay-Labs/Query-Hub
+#event_simpleName=NetworkConnect
+| (RemotePort=445 OR RemotePort=3389 OR RemotePort=5985)
+| !cidr(RemoteAddressIP4, subnet=["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"])
+| join({#event_simpleName=ProcessRollup2}, field=[aid, RawProcessId], include=[ImageFileName, CommandLine])
+| join({#event_simpleName=UserIdentity}, field=AuthenticationID, include=[UserName])
+| table([aid, UserName, ImageFileName, RemoteAddressIP4, RemotePort, CommandLine])

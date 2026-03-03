@@ -1,0 +1,11 @@
+// ログオン失敗の閾値検出
+// Source: CrowdStrike/logscale-community-content
+event_platform=Win #event_simpleName=UserLogonFailed2
+| SubStatus_hex:=format(field=SubStatus, "%x") | SubStatus_hex:=upper(SubStatus_hex) | SubStatus_hex:=format(format="0x%s", field=[SubStatus_hex])
+| groupBy([aid, ComputerName, UserName, LogonType, SubStatus_hex, SubStatus], function=([count(aid, as=FailCount), min(ContextTimeStamp, as=FirstLogonAttempt), max(ContextTimeStamp, as=LastLogonAttempt), collect([LocalAddressIP4, aip])]))
+| firstLastDeltaHours:=(LastLogonAttempt-FirstLogonAttempt) | firstLastDeltaHours:=firstLastDeltaHours/3600 | round("firstLastDeltaHours")
+| logonAttemptsPerHour:=FailCount/firstLastDeltaHours | round("logonAttemptsPerHour")
+| FirstLogonAttempt:=formatTime(format="%F %T.%L", field="FirstLogonAttempt")
+| LastLogonAttempt:=formatTime(format="%F %T.%L", field="LastLogonAttempt")
+| FailCount > 5
+| sort(FailCount, order=desc, limit=2000)
