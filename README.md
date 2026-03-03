@@ -1,4 +1,4 @@
-<h1 align="center">🐤🪵⚖️<br>cql-lint</h1>
+<h1 align="center">🐤🪵🧹<br>cql-lint</h1>
 
 <p align="center">
 <strong>Beta</strong>: This tool is in beta. Syntax coverage and lint rules are still limited. Expect breaking changes.
