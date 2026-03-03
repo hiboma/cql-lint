@@ -1,69 +1,69 @@
 # CLAUDE.md - cql-lint
 
-## プロジェクト概要
+## Project Overview
 
-CrowdStrike LogScale (旧 Humio) のクエリ言語 (CQL) に対する静的解析ツール (linter) です。
-クエリ文字列を受け取り、構文エラーやベストプラクティス違反を検出・報告します。
+A static analysis tool (linter) for CrowdStrike LogScale (formerly Humio) Query Language (CQL).
+It takes query strings as input and detects syntax errors and best practice violations.
 
-- 言語: Rust (edition 2024)
-- 対象: CrowdStrike Query Language (CQL)
-- 仕様参照: https://library.humio.com/data-analysis/syntax.html
+- Language: Rust (edition 2024)
+- Target: CrowdStrike Query Language (CQL)
+- Specification: https://library.humio.com/data-analysis/syntax.html
 
-## ビルド・テスト
-
-```bash
-cargo build          # ビルド
-cargo test           # 全テスト実行 (124 件)
-cargo run -- FILE    # lint 実行
-```
-
-## CLI 使い方
+## Build & Test
 
 ```bash
-cql-lint <file>...               # ファイルを lint する
-echo 'query' | cql-lint          # 標準入力から lint する
-cql-lint --format json <file>    # JSON 形式で出力する
-cql-lint --disable W002 <file>   # ルールを無効化する
-cql-lint --list-rules            # ルール一覧を表示する
-cql-lint --verbose <file>        # lint 成功時にメッセージを表示する (-v でも可)
-cql-lint --trim <file>           # 末尾空白を除去して整形済みクエリを出力する
-cql-lint --trim --write <file>   # 末尾空白を除去してファイルに書き戻す
+cargo build          # Build
+cargo test           # Run all tests (124 cases)
+cargo run -- FILE    # Run lint
 ```
 
-- 終了コード: エラー/警告あり=1, なし=0
-- テキスト出力は miette によるソース位置付き表示です
+## CLI Usage
 
-## アーキテクチャ
+```bash
+cql-lint <file>...               # Lint files
+echo 'query' | cql-lint          # Lint from stdin
+cql-lint --format json <file>    # Output in JSON format
+cql-lint --disable W002 <file>   # Disable a rule
+cql-lint --list-rules            # List all rules
+cql-lint --verbose <file>        # Show message on lint success (-v also works)
+cql-lint --trim <file>           # Remove trailing whitespace and print formatted query
+cql-lint --trim --write <file>   # Remove trailing whitespace and write back to file
+```
 
-3 層構造で実装しています。
+- Exit code: 1 if errors/warnings found, 0 otherwise
+- Text output uses miette for source-location-annotated display
+
+## Architecture
+
+The project is implemented in a 3-layer structure.
 
 ```
-CLI (main.rs)    -- clap + miette による入出力
-Linter           -- Rule トレイト + LintEngine による AST 走査
-Parser           -- 手書き再帰下降パーサー (Lexer → Token → AST)
+CLI (main.rs)    -- I/O via clap + miette
+Linter           -- AST traversal via Rule trait + LintEngine
+Parser           -- Hand-written recursive descent parser (Lexer -> Token -> AST)
 ```
 
-処理の流れ: `ソース文字列 → Lexer → Vec<Token> → Parser → AST (Query) → LintEngine → Vec<Diagnostic>`
+Processing pipeline: `Source string -> Lexer -> Vec<Token> -> Parser -> AST (Query) -> LintEngine -> Vec<Diagnostic>`
 
-## ファイル構成
+## File Structure
 
 ```
 src/
-├── main.rs                              # CLI エントリポイント (clap, miette)
-├── lib.rs                               # ライブラリルート
-├── diagnostic.rs                        # Diagnostic, Severity 型
+├── main.rs                              # CLI entry point (clap, miette)
+├── lib.rs                               # Library root
+├── diagnostic.rs                        # Diagnostic, Severity types
 ├── lexer/
-│   ├── mod.rs                           # Lexer 実装 (33 テスト)
-│   └── token.rs                         # Token, TokenKind, Span 型
+│   ├── mod.rs                           # Lexer implementation (33 tests)
+│   └── token.rs                         # Token, TokenKind, Span types
 ├── parser/
-│   ├── mod.rs                           # Parser 実装 (41 テスト)
-│   └── ast.rs                           # AST ノード定義
+│   ├── mod.rs                           # Parser implementation (41 tests)
+│   └── ast.rs                           # AST node definitions
 └── linter/
-    ├── mod.rs                           # LintEngine (28 テスト)
-    ├── rule.rs                          # Rule トレイト定義
-    ├── known_functions.rs               # 組み込み関数リスト (140+)
+    ├── mod.rs                           # LintEngine (28 tests)
+    ├── rule.rs                          # Rule trait definition
+    ├── known_functions.rs               # Built-in function list (140+)
     └── rules/
-        ├── mod.rs                       # ルールモジュール一覧
+        ├── mod.rs                       # Rule module index
         ├── syntax_error.rs              # E001
         ├── wildcard_only_filter.rs      # W001
         ├── unknown_function.rs          # W002
@@ -71,64 +71,64 @@ src/
         ├── pipe_style.rs               # W004
         ├── ambiguous_precedence.rs      # W005
         └── filter_order.rs             # W006
-testdata/                                # テスト用 .logscale ファイル
+testdata/                                # Test .logscale files
 ```
 
-## CQL 構文仕様 (実装済み)
+## CQL Syntax Specification (Implemented)
 
-### Lexer が認識するトークン
+### Tokens Recognized by Lexer
 
-| カテゴリ | トークン |
+| Category | Tokens |
 |---|---|
-| リテラル | 整数, 浮動小数点, 文字列 (`"..."`), 正規表現 (`/pattern/flags`) |
-| 識別子 | 通常 (`field`), `@` 付き (`@timestamp`), `#` 付き (`#event_simpleName`), 名前空間付き (`array:contains`) |
-| キーワード | `and`, `or`, `not`, `like`, `as`, `case`, `match`, `in`, `true`, `false` (大文字も認識) |
-| 演算子 | `=`, `!=`, `:=`, `<`, `<=`, `>`, `>=`, `<=>`, `\|`, `!`, `+`, `-`, `*`, `/` |
-| 区切り記号 | `()`, `[]`, `{}`, `,`, `.`, `:` |
-| ワイルドカード | `*foo*`, `error*`, `*` |
-| コメント | `//` (単一行), `/* */` (複数行) |
+| Literals | Integer, Float, String (`"..."`), Regex (`/pattern/flags`) |
+| Identifiers | Plain (`field`), `@`-prefixed (`@timestamp`), `#`-prefixed (`#event_simpleName`), Namespaced (`array:contains`) |
+| Keywords | `and`, `or`, `not`, `like`, `as`, `case`, `match`, `in`, `true`, `false` (case-insensitive) |
+| Operators | `=`, `!=`, `:=`, `<`, `<=`, `>`, `>=`, `<=>`, `\|`, `!`, `+`, `-`, `*`, `/` |
+| Delimiters | `()`, `[]`, `{}`, `,`, `.`, `:` |
+| Wildcards | `*foo*`, `error*`, `*` |
+| Comments | `//` (single-line), `/* */` (multi-line) |
 
-### Parser が生成する AST
+### AST Produced by Parser
 
-- `Query` -- パイプラインステージのリスト
+- `Query` -- List of pipeline stages
 - `PipelineStage` -- `StageKind` (Filter / FunctionCall / Assignment)
 - `FilterExpr` -- FreeText, FieldFilter, And, Or, Not, Grouped, FunctionCall
-- `FunctionCall` -- 関数名 + 引数リスト (位置引数, 名前付き引数)
+- `FunctionCall` -- Function name + argument list (positional args, named args)
 - `Expr` -- Number, String, Bool, Field, Regex, Wildcard, Array, FunctionCall, BinaryOp, UnaryOp, SubQuery, CompareExpr
-- `Assignment` -- フィールド名 + 式
+- `Assignment` -- Field name + expression
 
-### CQL 固有の注意点
+### CQL-Specific Notes
 
-- **OR は AND より結合が強い**: `a and b or c` は `a and (b or c)` と解釈されます
-- **暗黙の AND**: `src="a" ip="b"` は `src="a" AND ip="b"` と同等です
-- **`as` は名前付き引数名として使用可能**: `rename(field=X, as=Y)`
-- **`in`, `match` はキーワードかつ関数名**: `in(field=X, values=[...])` のように使います
-- **`#` 付きタグフィールド**: `#event_simpleName` のようにイベントタイプを参照します
-- **サブクエリ**: `join({...})` のように `{}` 内にパイプラインを記述します
-- **引数内の比較式**: `test(field != value)` のように関数引数内で比較演算子を使います
+- **OR binds tighter than AND**: `a and b or c` is interpreted as `a and (b or c)`
+- **Implicit AND**: `src="a" ip="b"` is equivalent to `src="a" AND ip="b"`
+- **`as` can be used as a named argument**: `rename(field=X, as=Y)`
+- **`in` and `match` are both keywords and function names**: Used as `in(field=X, values=[...])`
+- **`#`-prefixed tag fields**: Reference event types like `#event_simpleName`
+- **Subqueries**: Write pipelines inside `{}`, e.g., `join({...})`
+- **Comparison expressions in arguments**: Comparison operators can be used inside function arguments, e.g., `test(field != value)`
 
-## Lint ルール一覧
+## Lint Rules
 
-| ID | 重大度 | カテゴリ | 説明 |
+| ID | Severity | Category | Description |
 |---|---|---|---|
-| `E001` | error | syntax | 構文エラー (パース失敗) |
-| `W001` | warning | performance | `*` のみのフリーテキストフィルタ (全件マッチ) |
-| `W002` | warning | correctness | 未知の関数名の使用 |
-| `W003` | warning | correctness | 関数の必須引数が不足 |
-| `W004` | info | style | パイプ `\|` の前後に空白がない |
-| `W005` | warning | correctness | AND/OR 優先順位が曖昧な式 (括弧なしの混在) |
-| `W006` | info | performance | 集約関数の後にフィルタを配置 |
+| `E001` | error | syntax | Syntax error (parse failure) |
+| `W001` | warning | performance | Free-text filter with only `*` (matches everything) |
+| `W002` | warning | correctness | Unknown function name |
+| `W003` | warning | correctness | Missing required function arguments |
+| `W004` | info | style | No whitespace around pipe `\|` |
+| `W005` | warning | correctness | Ambiguous AND/OR precedence (mixed without parentheses) |
+| `W006` | info | performance | Filter placed after aggregation function |
 
-## 新しいルールの追加方法
+## Adding a New Rule
 
-1. `src/linter/rules/` に新しいファイルを作成します
-2. `Rule` トレイトを実装します (`id`, `description`, `check`)
-3. `src/linter/rules/mod.rs` にモジュールを追加します
-4. `src/linter/mod.rs` の `LintEngine::new()` にルールを登録します
-5. `src/linter/mod.rs` の `#[cfg(test)]` にテストを追加します
+1. Create a new file in `src/linter/rules/`
+2. Implement the `Rule` trait (`id`, `description`, `check`)
+3. Add the module to `src/linter/rules/mod.rs`
+4. Register the rule in `LintEngine::new()` in `src/linter/mod.rs`
+5. Add tests in `#[cfg(test)]` in `src/linter/mod.rs`
 
 ```rust
-// Rule トレイト
+// Rule trait
 pub trait Rule {
     fn id(&self) -> &'static str;
     fn description(&self) -> &'static str;
@@ -136,27 +136,27 @@ pub trait Rule {
 }
 ```
 
-## 依存ライブラリ
+## Dependencies
 
-| ライブラリ | 用途 |
+| Crate | Purpose |
 |---|---|
-| `clap` (4) | CLI 引数解析 |
-| `miette` (7) | ソース位置付きエラー表示 |
-| `serde` + `serde_json` (1) | JSON 出力, Serialize 導出 |
-| `thiserror` (2) | エラー型定義 |
-| `insta` (1, dev) | スナップショットテスト |
+| `clap` (4) | CLI argument parsing |
+| `miette` (7) | Source-location-annotated error display |
+| `serde` + `serde_json` (1) | JSON output, Serialize derive |
+| `thiserror` (2) | Error type definitions |
+| `insta` (1, dev) | Snapshot testing |
 
-## Homebrew 配布
+## Homebrew Distribution
 
-### 構成
+### Components
 
-- `Formula/cql-lint.rb` -- Formula テンプレート (このリポジトリに同梱)
-- `github.com/hiboma/homebrew-tap` -- Homebrew tap リポジトリ (Formula の公開先)
+- `Formula/cql-lint.rb` -- Formula template (included in this repository)
+- `github.com/hiboma/homebrew-tap` -- Homebrew tap repository (where the Formula is published)
 
-### リリース時の手動更新手順
+### Manual Update Steps on Release
 
-1. タグ push で GitHub Release が作成されるのを待ちます
-2. リリースページから macOS / Linux の tar.gz をダウンロードし sha256 を取得します
+1. Wait for a GitHub Release to be created by a tag push
+2. Download the macOS / Linux tar.gz from the release page and get the sha256
 
 ```bash
 curl -sL https://github.com/hiboma/cql-lint/releases/download/v0.1.0/cql-lint-v0.1.0-aarch64-apple-darwin.tar.gz | shasum -a 256
@@ -164,16 +164,16 @@ curl -sL https://github.com/hiboma/cql-lint/releases/download/v0.1.0/cql-lint-v0
 curl -sL https://github.com/hiboma/cql-lint/releases/download/v0.1.0/cql-lint-v0.1.0-x86_64-unknown-linux-gnu.tar.gz | shasum -a 256
 ```
 
-3. `Formula/cql-lint.rb` の `version` と `sha256` を更新します
-4. 更新した Formula を `hiboma/homebrew-tap` リポジトリにコピーして push します
+3. Update `version` and `sha256` in `Formula/cql-lint.rb`
+4. Copy the updated Formula to the `hiboma/homebrew-tap` repository and push
 
-### 自動化する場合
+### Automation
 
-release.yml に homebrew-releaser アクションを追加すると、タグ push 時に tap リポジトリの Formula を自動更新できます。
+Adding a homebrew-releaser action to release.yml enables automatic Formula updates in the tap repository on tag push.
 
-1. GitHub の Settings > Developer settings > Personal access tokens で `repo` スコープの PAT を作成します
-2. cql-lint リポジトリの Settings > Secrets に `HOMEBREW_TAP_TOKEN` として登録します
-3. release.yml の `release` ジョブの後に以下のジョブを追加します
+1. Create a PAT with `repo` scope at GitHub Settings > Developer settings > Personal access tokens
+2. Register it as `HOMEBREW_TAP_TOKEN` in cql-lint repository Settings > Secrets
+3. Add the following job after the `release` job in release.yml
 
 ```yaml
   homebrew:
@@ -198,12 +198,12 @@ release.yml に homebrew-releaser アクションを追加すると、タグ pus
           target_linux_arm64: false
 ```
 
-## コーディング規約
+## Coding Conventions
 
-- ファイル末尾に改行を入れます (POSIX 仕様)
-- テストは各モジュール内の `#[cfg(test)] mod tests` に記述します
-- AST の走査はルールごとに再帰的に行います (`check_stage` → `check_filter` → `check_expr`)
-- 新しい AST ノードを追加した場合、全ルールの `check_expr` / `check_filter` に分岐を追加します
+- Files must end with a newline (POSIX compliance)
+- Tests are written in `#[cfg(test)] mod tests` within each module
+- AST traversal is performed recursively per rule (`check_stage` -> `check_filter` -> `check_expr`)
+- When adding a new AST node, add branches to `check_expr` / `check_filter` in all rules
 
 ## GitHub Actions Security Policy
 
