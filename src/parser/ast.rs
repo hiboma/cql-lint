@@ -135,7 +135,7 @@ pub enum Expr {
     /// サブクエリ ({...} ブロック内のパイプライン)
     SubQuery(Box<Query>),
     /// 比較式 (引数内で使用: field != value)
-    CompareExpr {
+    Comparison {
         left: Box<Expr>,
         op: CompareOp,
         right: Box<Expr>,

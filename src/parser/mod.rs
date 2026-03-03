@@ -457,7 +457,7 @@ impl Parser {
         if let Some(op) = op {
             self.advance();
             let right = self.parse_expr()?;
-            return Some(Expr::CompareExpr {
+            return Some(Expr::Comparison {
                 left: Box::new(expr),
                 op,
                 right: Box::new(right),
@@ -1460,12 +1460,12 @@ mod tests {
                 assert_eq!(fc.name, "correlate");
                 assert_eq!(fc.arguments.len(), 1);
                 match &fc.arguments[0] {
-                    Argument::Positional(Expr::CompareExpr { left, op, right }) => {
+                    Argument::Positional(Expr::Comparison { left, op, right }) => {
                         assert!(matches!(left.as_ref(), Expr::Field(f) if f == "field1"));
                         assert_eq!(*op, CompareOp::Link);
                         assert!(matches!(right.as_ref(), Expr::Field(f) if f == "field2"));
                     }
-                    other => panic!("expected CompareExpr with Link, got {:?}", other),
+                    other => panic!("expected Comparison with Link, got {:?}", other),
                 }
             }
             other => panic!("expected FunctionCall, got {:?}", other),
@@ -2015,10 +2015,10 @@ mod tests {
                 assert_eq!(fc.name, "test");
                 assert_eq!(fc.arguments.len(), 1);
                 match &fc.arguments[0] {
-                    Argument::Positional(Expr::CompareExpr { op, .. }) => {
+                    Argument::Positional(Expr::Comparison { op, .. }) => {
                         assert_eq!(*op, CompareOp::NotEq);
                     }
-                    other => panic!("expected CompareExpr, got {:?}", other),
+                    other => panic!("expected Comparison, got {:?}", other),
                 }
             }
             other => panic!("expected FunctionCall, got {:?}", other),
@@ -2376,10 +2376,10 @@ mod tests {
             StageKind::FunctionCall(fc) => {
                 assert_eq!(fc.name, "test");
                 match &fc.arguments[0] {
-                    Argument::Positional(Expr::CompareExpr { op, .. }) => {
+                    Argument::Positional(Expr::Comparison { op, .. }) => {
                         assert_eq!(*op, CompareOp::EqEq);
                     }
-                    other => panic!("expected CompareExpr with EqEq, got {:?}", other),
+                    other => panic!("expected Comparison with EqEq, got {:?}", other),
                 }
             }
             other => panic!("expected FunctionCall, got {:?}", other),

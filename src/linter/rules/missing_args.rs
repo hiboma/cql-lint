@@ -164,7 +164,7 @@ impl MissingArgs {
                     self.check_stage(stage, diagnostics);
                 }
             }
-            Expr::CompareExpr { left, right, .. } => {
+            Expr::Comparison { left, right, .. } => {
                 self.check_expr(left, diagnostics);
                 self.check_expr(right, diagnostics);
             }
