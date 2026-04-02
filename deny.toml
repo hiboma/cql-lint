@@ -1,0 +1,67 @@
+# cargo-deny configuration for cql-lint
+# https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+targets = []
+all-features = false
+no-default-features = false
+
+# --------------------------------------------------------------------------
+# [licenses] - Allowed licenses for all dependencies
+# --------------------------------------------------------------------------
+[licenses]
+# Confidence threshold for license detection
+confidence-threshold = 0.8
+
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+]
+
+# --------------------------------------------------------------------------
+# [bans] - Crate bans and duplicate detection
+# --------------------------------------------------------------------------
+[bans]
+# Warn on multiple versions of the same crate
+multiple-versions = "warn"
+wildcards = "allow"
+highlight = "all"
+
+# --------------------------------------------------------------------------
+# [advisories] - RustSec vulnerability database checks
+# --------------------------------------------------------------------------
+[advisories]
+# Path to the local copy of the advisory database
+db-path = "~/.cargo/advisory-db"
+
+# URL to the RustSec advisory database
+db-urls = ["https://github.com/rustsec/advisory-db"]
+
+# A list of advisory IDs to ignore. Note that ignored advisories will still
+# output a note when they are encountered.
+# By default (with no ignore entries), cargo-deny will:
+# - deny any crates with known vulnerabilities
+# - warn on unmaintained crates
+# - warn on yanked crate versions
+ignore = []
+
+# --------------------------------------------------------------------------
+# [sources] - Allowed crate sources
+# --------------------------------------------------------------------------
+[sources]
+# Only allow crates from crates.io
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+
+# Deny crates from unknown registries
+unknown-registry = "deny"
+
+# Deny crates sourced from git repositories
+unknown-git = "deny"
+
+# No specific allowed git sources
+allow-git = []
